@@ -43,6 +43,13 @@ async def extract_webpage_mcp(
     result["urls"] = urls
     return result
 
+# ファイルをダウンロードするツールを登録
+def download_file_mcp(
+    url: Annotated[str, "URL of the file to download"],
+    save_path: Annotated[str, "Path to save the downloaded file"]
+) -> Annotated[bool, "True if the file was downloaded successfully, False otherwise"]:
+    return WebUtil.download_file(url, save_path)
+
 # 引数解析用の関数
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run MCP server with specified mode and APP_DATA_PATH.")
@@ -82,6 +89,7 @@ async def main():
         mcp.tool()(search_wikipedia_ja_mcp)
         mcp.tool()(ddgs_search)
         mcp.tool()(extract_webpage_mcp)
+        mcp.tool()(download_file_mcp)
 
     if mode == "stdio":
         await mcp.run_async()

@@ -33,6 +33,20 @@ class WebUtil:
         return request
     
     @classmethod
+    def download_file(cls, url: str, save_path: str) -> bool:
+        import requests
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # HTTPエラーが発生した場合に例外をスロー
+            with open(save_path, 'wb') as file:
+                file.write(response.content)
+            logger.info(f"File downloaded successfully: {save_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error downloading file: {e}")
+            return False
+
+    @classmethod
     async def extract_webpage_api(cls,request_json: str):
         # request_jsonからrequestを作成
         request_dict: dict = json.loads(request_json)
