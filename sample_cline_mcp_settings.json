@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "web_search_mcp": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "<PATH_TO_VENV>",
+        "run",
+        "-m",
+        "web_search_mcp.mcp_modules.mcp_server"
+      ],
+      "env": {
+        "PLAYWRIGHT_HEADLESS": "false",
+        "PLAYWRIGHT_BROWSER": "msedge",
+        "PLAYWRIGHT_AUTH_JSON": "<PATH_TO_AUTH_JSON IF NEEDED>"
+      }
+    }
+  }
+}

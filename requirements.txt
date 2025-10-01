@@ -1,0 +1,10 @@
+python-dotenv
+pydantic
+
+# For Web
+wikipedia
+playwright
+ddgs 
+
+# For MCP
+fastmcp
