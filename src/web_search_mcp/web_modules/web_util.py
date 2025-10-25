@@ -38,6 +38,7 @@ class WebSearchResult(BaseModel):
 
 
 class WebUtil:
+
     @staticmethod
     def get_absolute_url(base_url: str, href: str) -> str:
         """
@@ -50,19 +51,7 @@ class WebUtil:
         if href.startswith("http://") or href.startswith("https://"):
             return href
         return urljoin(base_url, href)
-    web_request_name = "web_request"
-    @classmethod
-    def get_web_request_objects(cls, request_dict: dict) -> dict:
-        '''
-        {"context": {"web_request": {}}}の形式で渡される
-        '''
-        # contextを取得
-        from typing import Optional
-        request: Optional[dict] = request_dict.get(cls.web_request_name, None)
-        if not request:
-            raise ValueError("request is not set.")
-        return request
-    
+
     @classmethod
     def download_file(cls, url: str, save_path: str) -> bool:
         import requests
@@ -77,22 +66,6 @@ class WebUtil:
             logger.error(f"Error downloading file: {e}")
             return False
 
-    @classmethod
-    async def extract_webpage_api(cls,request_json: str):
-        # request_jsonからrequestを作成
-        request_dict: dict = json.loads(request_json)
-        # web_requestを取得
-        request = WebUtil.get_web_request_objects(request_dict)
-
-        url = request.get("url", None)
-        if url is None:
-            raise ValueError("URL is not set in the web_request object.")
-        text, urls = await WebUtil.extract_webpage(url)
-        result: dict[str, Any] = {}
-        result["output"] = text
-        result["urls"] = urls
-        result["base_url"] = url
-        return result
 
     @classmethod
     async def extract_webpage(cls, url: Annotated[str, "URL of the web page to extract text and links from"]) -> Annotated[tuple[str, list[tuple[str, str]]], "Page text, list of links (absolute href and link text from <a> tags)"]:
