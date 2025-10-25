@@ -1,3 +1,4 @@
+
 from typing import Any, Union
 from typing import Annotated
 import json
@@ -5,7 +6,25 @@ import os
 from playwright.async_api import async_playwright
 from ddgs import DDGS
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 from bs4 import BeautifulSoup
+
+# PlaywrightSettings クラスをファイル上部に定義
+class PlaywrightSettings(BaseSettings):
+    headless: bool = False
+    browser: str = "msedge"
+    auth_json_path: str = ""
+    class Config:
+        env_prefix = "PLAYWRIGHT_"
+        case_sensitive = False
+
+    def get_valid_auth_json_path(self) -> str:
+        """
+        auth_json_pathが存在しない場合は空文字を返す
+        """
+        if not self.auth_json_path or not os.path.exists(self.auth_json_path):
+            return ""
+        return self.auth_json_path
 
 import web_search_mcp.log_modules.log_settings as log_settings
 logger = log_settings.getLogger(__name__)
@@ -19,6 +38,18 @@ class WebSearchResult(BaseModel):
 
 
 class WebUtil:
+    @staticmethod
+    def get_absolute_url(base_url: str, href: str) -> str:
+        """
+        hrefが相対パスの場合はbase_urlと結合して絶対URLに変換。
+        すでに絶対URLの場合はそのまま返す。
+        """
+        from urllib.parse import urljoin
+        if not href:
+            return ""
+        if href.startswith("http://") or href.startswith("https://"):
+            return href
+        return urljoin(base_url, href)
     web_request_name = "web_request"
     @classmethod
     def get_web_request_objects(cls, request_dict: dict) -> dict:
@@ -60,47 +91,52 @@ class WebUtil:
         result: dict[str, Any] = {}
         result["output"] = text
         result["urls"] = urls
+        result["base_url"] = url
         return result
 
     @classmethod
-    async def extract_webpage(cls, url: Annotated[str, "URL of the web page to extract text and links from"]) -> Annotated[tuple[str, list[tuple[str, str]]], "Page text, list of links (href attribute and link text from <a> tags)"]:
+    async def extract_webpage(cls, url: Annotated[str, "URL of the web page to extract text and links from"]) -> Annotated[tuple[str, list[tuple[str, str]]], "Page text, list of links (absolute href and link text from <a> tags)"]:
         """
         This function extracts text and links from the specified URL of a web page.
+        リンクは絶対URLで返す。
         """
-        async with async_playwright() as p:
-            headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
-            channel = os.getenv("PLAYWRIGHT_BROWSER", "msedge").lower()
-            auth_json_path = os.getenv("PLAYWRIGHT_AUTH_JSON", "")
-            
-            if not os.path.exists(auth_json_path):
-                auth_json_path = ""
-            
-            # EdgeのWebドライバーを取得
-            browser = await p.chromium.launch(headless=headless, channel=channel)
-            try:
+        settings = PlaywrightSettings()
+        browser = None
+        result = ("", [])
+        try:
+            async with async_playwright() as p:
+                auth_json_path = settings.get_valid_auth_json_path()
+                browser = await p.chromium.launch(headless=settings.headless, channel=settings.browser)
                 if auth_json_path:
                     page = await browser.new_page(storage_state=auth_json_path)
-                else:        
+                else:
                     page = await browser.new_page()
-                
                 await page.goto(url)
                 page_html = await page.content()
                 soup = BeautifulSoup(page_html, "html.parser")
                 text = soup.get_text()
                 sanitized_text = cls.sanitize_text(text)
                 if not sanitized_text or len(sanitized_text) == 0:
-                    return "", []
+                    return result
 
-                # Retrieve href attribute and text from <a> tags
-                urls: list[tuple[str, str]] = [(a.get("href"), a.get_text()) for a in soup.find_all("a")] # type: ignore
-                return sanitized_text, urls
+                # <a>タグのhrefを絶対URL化して取得
+                urls: list[tuple[str, str]] = []
+                for a in soup.find_all("a"):
+                    href = a.get("href")
+                    if href:
+                        link_text = a.get_text()
+                        if link_text:
+                            abs_url = cls.get_absolute_url(url, str(href))
+                            urls.append((abs_url, link_text))
 
-            except Exception as e:
-                logger.error(f"Error extracting webpage: {e}")
-                return "", []
-            finally:
+                result = (sanitized_text, urls)
+
+        except Exception as e:
+            logger.error(f"Error extracting webpage: {e}")
+        finally:
+            if browser:
                 await browser.close()
-
+        return result
 
     @classmethod
     async def ddgs_search(
