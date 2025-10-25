@@ -1,3 +1,4 @@
+
 from typing import Any, Union
 from typing import Annotated
 import json
@@ -5,7 +6,25 @@ import os
 from playwright.async_api import async_playwright
 from ddgs import DDGS
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 from bs4 import BeautifulSoup
+
+# PlaywrightSettings クラスをファイル上部に定義
+class PlaywrightSettings(BaseSettings):
+    headless: bool = False
+    browser: str = "msedge"
+    auth_json_path: str = ""
+    class Config:
+        env_prefix = "PLAYWRIGHT_"
+        case_sensitive = False
+
+    def get_valid_auth_json_path(self) -> str:
+        """
+        auth_json_pathが存在しない場合は空文字を返す
+        """
+        if not self.auth_json_path or not os.path.exists(self.auth_json_path):
+            return ""
+        return self.auth_json_path
 
 import web_search_mcp.log_modules.log_settings as log_settings
 logger = log_settings.getLogger(__name__)
@@ -81,16 +100,13 @@ class WebUtil:
         This function extracts text and links from the specified URL of a web page.
         リンクは絶対URLで返す。
         """
+        settings = PlaywrightSettings()
         browser = None
         result = ("", [])
         try:
             async with async_playwright() as p:
-                headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
-                channel = os.getenv("PLAYWRIGHT_BROWSER", "msedge").lower()
-                auth_json_path = os.getenv("PLAYWRIGHT_AUTH_JSON", "")
-                if not os.path.exists(auth_json_path):
-                    auth_json_path = ""
-                browser = await p.chromium.launch(headless=headless, channel=channel)
+                auth_json_path = settings.get_valid_auth_json_path()
+                browser = await p.chromium.launch(headless=settings.headless, channel=settings.browser)
                 if auth_json_path:
                     page = await browser.new_page(storage_state=auth_json_path)
                 else:

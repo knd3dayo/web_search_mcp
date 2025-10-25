@@ -1,6 +1,6 @@
 python-dotenv
 pydantic
-
+pydantic_settings
 # For Web
 wikipedia
 playwright
